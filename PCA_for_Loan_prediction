@@ -1,0 +1,179 @@
+## Data processing stage to get it ready for my knn algo.
+##getwd()
+
+#Load train and test data
+train_data<-read.csv("train_avlp.csv", stringsAsFactors = FALSE, na.strings="")
+
+test_data<-read.csv("test_avlp.csv", stringsAsFactors = FALSE, na.strings="")
+
+#Display contents of train and test data
+str(train_data)
+str(test_data)
+
+#Make a dataframe of complete data
+all_data<-rbind.data.frame(train_data[,-ncol(train_data)],test_data)
+
+
+for(i in colnames(all_data)){
+		print(paste0(i," ",sum(is.na(all_data[i]))))}
+
+#check if there are NAs in all_data column wise
+missing_val_col <- sapply(colnames(all_data), function(i) sum(is.na(all_data[i])))
+
+#names(which.max(table(all_data["Gender"])))
+
+for(i in colnames(all_data)){
+	if(missing_val_col[i]>0){
+		if(is.character(all_data[,i])){
+			all_data[is.na(all_data[[i]]),i]<-names(which.max							(table(all_data[[i]])))}
+		else{all_data[is.na(all_data[[i]]),i]<-mean(all_data[[i]], 			na.rm=T)}}}
+
+for(i in colnames(all_data)){
+		print(paste0(i," ",sum(is.na(all_data[i]))))}
+
+		nrow(all_data[-(1:nrow(train_data)),])
+colnames(cbind.data.frame(all_data[1:nrow(train_data),],"Loan_Status" = train_data[,ncol(train_data)]))
+
+#cbind.data.frame(all_data[1:nrow(train_data),],"Loan_Status" = c#(train_data[,ncol(train_data)],rep(NA_character_,(nrow(all_data)-nrow#(train_data)))))
+
+data<-cbind.data.frame(all_data[1:nrow(train_data),],"Loan_Status" = train_data[,ncol(train_data)]) 
+
+
+#########################################################################
+
+#KNN
+mode<-function(x)return(names(which.max(table(x))))
+n<-5
+
+k<-c(1,11,3,9,7,5)
+
+data<-data[-1]
+
+
+normalize<-function(v){return((v[]-min(v[]))/(max(v[])-min(v[])))}
+
+
+
+shuf<- sample(2,nrow(data),T,c(0.8,0.2))
+train<- data[which(shuf==1),]
+test<- data[which(shuf!=1),]
+data<-rbind.data.frame(test,train)
+##
+cols_w_char<-NULL
+ for(i in 1:ncol(data)){
+ if(is.character(data[,i]))
+ cols_w_char<-c(cols_w_char,i)}
+##Print the levels 
+ for(i in 1:length(cols_w_char)){
+	print(paste(levels(as.factor(data[,cols_w_char[i]]))))}
+
+ for(i in cols_w_char){
+		data[,i]<-as.integer(as.factor(data[,i]))}
+
+#Implement Normalize
+for(i in 1:ncol(data)){if(is.numeric(data[,i])){
+			data[i]<-normalize(data[i])}}
+###############
+pca
+####
+ for(i in colnames(data)[-ncol(data)]){
+	data[[i]]<-data[[i]]-mean(data[[i]])}
+
+
+x<-as.matrix(data[-ncol(data)])
+
+ A<-t(x)%*%x  #attributes change along the columns so in matrix multiplication x should be on the left side
+
+#to check if A is symmetrci
+t(A)==A
+
+
+ v<-eigen(A)
+
+ord<- order(v$values,decreasing=TRUE)
+
+ordered_eigen_values<- v$values[ord]
+
+e<-v$vectors[,ord]
+
+d<-matrix(0,ncol(x),ncol(x))
+for(i in 1:nrow(d)){
+	d[i,i]<-v$values[i]
+}
+
+s<-(1/(ncol(x)-1))*d
+
+p<-matrix(ncol=ncol(x),nrow=ncol(x))
+
+for(i in 1:nrow(p)){
+p[i,]<-e[,i]
+}
+
+new_x<-t(p%*%t(x))
+
+threshold<-0.95
+
+lambda_total<-sum(ordered_eigen_values)
+cumulative_normalized_eigen_values<-vector(length=ncol(x))
+for(i in 1:length(ordered_eigen_values)){
+cumulative_normalized_eigen_values[i]<- sum(ordered_eigen_values[1:i])/lambda_total}
+	
+
+updated_dimensions<-max(which(cumulative_normalized_eigen_values<threshold))
+
+
+data<-cbind.data.frame(new_x[,1:updated_dimensions],data[ncol(data)])
+
+
+
+############
+rm(test)
+n<-5
+k<-seq(1,11,2)
+shuf<- sample(2,nrow(data),T,c(0.8,0.2))
+train<-data[which(shuf==1),]
+test<-data[which(shuf!=1),]
+data<-rbind.data.frame(test,train)
+o_accuracy<-matrix(nrow=n,ncol=length(k))
+for(m in 1:n){	
+train<- data[-(floor(nrow(data)*(m-1)/5)+1:floor(nrow(data)*(m/5))),]
+test<- data[(floor(nrow(data)*(m-1)/5)+1):floor(nrow(data)*(m/5)),]
+
+#Changed for 10 attributes can be generalised as train[,-ncol(data)]
+x_train<- as.matrix(train[,-(ncol(train))])
+y_train<-as.matrix(train[,ncol(train)])
+
+x_test<- as.matrix(test[,-(ncol(test))])
+y_test<-as.matrix(test[,ncol(test)])
+
+y_pred<-matrix(ncol=length(k), nrow=nrow(test))
+for(j in 1:nrow(test)){
+			d<-NULL 
+			for(i in 1:nrow(train)){
+					d[i]<-sqrt(sum((x_test[j,]-x_train[i,])^2))}
+for (l in 1:length(k)){
+
+y_pred[j,l]<-mode(y_train[order(d)[1:k[l]]])}} # Each column corresponds to the prediction of the jth elemnt when a particular k from the vector of ks is considered for calculating the mode
+
+for (l in 1:length(k)){
+t<-table(y_test,as.factor(y_pred[,l]))
+	t
+	o_accuracy[m,l]<-(t[1]+t[4])/(t[1]+t[2]+t[3]+t[4])
+	o_accuracy}}
+
+##l is the counter for the different ks and m is the counter for the different folds
+mean_o_accuracy<-NULL
+for( i in 1:length(k)){mean_o_accuracy[i]<-mean(o_accuracy[,i],na.rm=TRUE)}
+a<-which(mean_o_accuracy==max(mean_o_accuracy))
+
+print(paste(k[a]))
+
+
+#after using pca were getting increase in accuracy
+
+
+
+
+
+
+	
